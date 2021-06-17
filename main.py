@@ -1,11 +1,12 @@
 import pygame
 import os
+import random
 
 pygame.init()
 
 
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
+SCREEN_WIDTH = 1100
+SCREEN_HEIGHT = 600
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Shooter')
@@ -16,6 +17,7 @@ FPS = 60
 
 #gravedad del juego
 GRAVITY = 0.75
+rangoCamintadaIA = 120
 
 #variabless para mover al personaje derecha o izquierda
 mover_izquierda = False
@@ -33,6 +35,8 @@ BG2 = pygame.image.load("img/background/sky_cloud.png")
 BG3 = pygame.image.load("img/background/suelo.png")
 BG3 = pygame.image.load("img/background/suelo.png")
 RED = (255, 0, 0)
+
+sonidoSaltar=pygame.mixer.Sound("pj.wav")
 
 def draw_bg():
 	screen.blit(BG2,(0,0))
@@ -83,15 +87,21 @@ class Player(pygame.sprite.Sprite):
 		self.health=100
 		self.radius = self.rect.width/2 
 
+		self.move_counter = 0
+		self.vision = pygame.Rect(0, 0, 150, 20) # 75,10
+		self.EstoyMirandoPlayer = False
+		self.EstoyMirandoPlayer_counter = 0
+
 	def update(self):
 		self.actualizarAnimacion()
 		self.verificarEstoyVivo()
 		#update cooldown
 		if self.tiempo_casteo > 0: #20 # espera 20 ejeciccion del while principal para ejecurtarse otra vez
 			self.tiempo_casteo -= 1 #0
+	
 	def castearMagia(self):
 		if self.tiempo_casteo == 0 and self.cantidad_magia > 0:
-			self.tiempo_casteo = 20
+			self.tiempo_casteo = 30
 			magiaFuego = MagiaFuego(self.rect.centerx + (80 * self.direction),self.rect.centery, self.direction,0.2)
 			grupo_magiasDisparadas.add(magiaFuego)
 			#reducimos la cantidad de magia
@@ -164,6 +174,40 @@ class Player(pygame.sprite.Sprite):
 			self.indice_NumeroImagen = 0
 			self.update_time = pygame.time.get_ticks()
 
+	def InteligenciaArtificialNormal(self):
+		if self.estoyVivo :#and player.estoyVivo:
+			if self.EstoyMirandoPlayer == False and random.randint(1, 200) == 1:
+				#sonidoDOlor.play()
+				self.actualizarAccion(0)#0: idle
+
+				self.EstoyMirandoPlayer = True
+				self.EstoyMirandoPlayer_counter = 200
+			#verificamos si la AI esta cerca del personaje
+			if self.vision.colliderect(player.rect):
+				#detenerse y mirar al personaje
+				self.actualizarAccion(0)#0: estado idle
+				#estado castear magina
+				self.castearMagia()
+			else:
+				if self.EstoyMirandoPlayer == False: # esta caminando
+					if self.direction == 1:
+						ai_moverDerecha = True
+					else:
+						ai_moverDerecha = False
+					ai_moverIzquierda = not ai_moverDerecha
+					self.mover_player(ai_moverIzquierda, ai_moverDerecha)
+					self.actualizarAccion(1)#1: estado de caminar
+					self.move_counter += 1
+					#update ai vision as the enemy moves
+					self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
+
+					if self.move_counter > rangoCamintadaIA: #verifica que no sobrepase el limite de caminanata
+						self.direction *= -1  # verifica la direccion de caminata
+						self.move_counter *= -1
+				else:
+					self.EstoyMirandoPlayer_counter -= 1
+					if self.EstoyMirandoPlayer_counter <= 0:
+						self.EstoyMirandoPlayer = False
 
 
 	def draw(self):
@@ -194,17 +238,17 @@ class MagiaFuego(pygame.sprite.Sprite):
 		self.verificarColision()
 	def verificarColision(self):
 		#verificamos si a colisionado con alguien
-		'''if pygame.sprite.spritecollide(player, grupo_magiasDisparadas, False):
+		if pygame.sprite.spritecollide(player, grupo_magiasDisparadas, False,pygame.sprite.pygame.sprite.collide_circle_ratio(.25)):
 			if player.estoyVivo:
 				player.health -= 5
-				self.kill()'''
+				self.kill()
 		if pygame.sprite.spritecollide(enemy, grupo_magiasDisparadas,False,pygame.sprite.pygame.sprite.collide_circle_ratio(.25)):
 			if enemy.estoyVivo:
 				enemy.health -= 25
 				self.kill()
 
 player = Player("player",200, 200, .7, 5,20)
-enemy  = Player("enemy", 600, 500, .7, 5,20)
+enemy  = Player("enemy", 600, 500, .7, 2,20)
 
 grupo_magiasDisparadas = pygame.sprite.Group()
 
@@ -222,6 +266,7 @@ while run:
 			if event.key == pygame.K_d:
 				mover_derecha = True
 			if event.key == pygame.K_w and player.estoyVivo:
+				sonidoSaltar.play()
 				player.saltar = True
 			if event.key == pygame.K_SPACE:
 				cast_magia = True
@@ -260,6 +305,7 @@ while run:
 	player.update()
 	player.draw() # dibuja al jugador
 
+	enemy.InteligenciaArtificialNormal()
 	enemy.draw()
 	enemy.update()
 	
