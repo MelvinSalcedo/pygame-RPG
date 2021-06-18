@@ -4,6 +4,11 @@ import random
 
 pygame.init()
 
+BG = (144, 201, 120)
+RED = (255, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+BLACK = (0, 0, 0)
 
 SCREEN_WIDTH = 1100
 SCREEN_HEIGHT = 600
@@ -27,24 +32,35 @@ cast_magia_saliranimacion = False
 
 #piso del esenario
 piso = SCREEN_HEIGHT-100
+font = pygame.font.SysFont('Futura', 30)
 
 
-
-BG = pygame.image.load("img/background/mountain.png")
-BG2 = pygame.image.load("img/background/sky_cloud.png")
-BG3 = pygame.image.load("img/background/suelo.png")
-BG3 = pygame.image.load("img/background/suelo.png")
+mountaña = pygame.image.load("img/background/mountain.png").convert_alpha()
+pinos = pygame.image.load("img/background/pine1.png").convert_alpha()
+nuves = pygame.image.load("img/background/sky_cloud.png").convert_alpha()
+suelo = pygame.image.load("img/background/suelo.png").convert_alpha()
 RED = (255, 0, 0)
 
 sonidoSaltar=pygame.mixer.Sound("pj.wav")
 
+itemVida = pygame.image.load('img/icons/health_box.png').convert_alpha()
+itemMagia = pygame.image.load('img/icons/ammo_box.png').convert_alpha()
+imgMagia = pygame.image.load("img/icons/magia.png").convert_alpha()
+
+cajaItems = {
+	'Health'	: itemVida,
+	'magia'		: itemMagia,
+}
+
 def draw_bg():
-	screen.blit(BG2,(0,0))
-	screen.blit(BG,(0,250))
-	screen.blit(BG3,(0,300))
-	screen.blit(BG3,(500,300))
+	screen.blit(nuves,(0,0))
+	screen.blit(mountaña,(0,200))
+	screen.blit(pinos,(0,270))
+	screen.blit(suelo,(0,270))
 
-
+def draw_text(text, font, text_col, x, y):
+	img = font.render(text, True, text_col)
+	screen.blit(img, (x, y))
 
 
 class Player(pygame.sprite.Sprite):
@@ -91,18 +107,24 @@ class Player(pygame.sprite.Sprite):
 		self.vision = pygame.Rect(0, 0, 150, 20) # 75,10
 		self.EstoyMirandoPlayer = False
 		self.EstoyMirandoPlayer_counter = 0
+		self.estoyAtacando=False
+		self.max_health = self.health
 
 	def update(self):
 		self.actualizarAnimacion()
 		self.verificarEstoyVivo()
-		#update cooldown
+		#uactualiamos tiempo
 		if self.tiempo_casteo > 0: #20 # espera 20 ejeciccion del while principal para ejecurtarse otra vez
 			self.tiempo_casteo -= 1 #0
 	
 	def castearMagia(self):
 		if self.tiempo_casteo == 0 and self.cantidad_magia > 0:
+			self.estoyAtacando=True
+			self.actualizarAccion(4)
+
+
 			self.tiempo_casteo = 30
-			magiaFuego = MagiaFuego(self.rect.centerx + (80 * self.direction),self.rect.centery, self.direction,0.2)
+			magiaFuego = MagiaFuego(self.rect.centerx + (80 * self.direction),self.rect.centery, self.direction,0.15)
 			grupo_magiasDisparadas.add(magiaFuego)
 			#reducimos la cantidad de magia
 			self.cantidad_magia -= 1
@@ -155,11 +177,15 @@ class Player(pygame.sprite.Sprite):
 		ANIMATION_COOLDOWN = 100
 		self.image = self.lista_animacion[self.accion][self.indice_NumeroImagen]
 		#si paso 100 milisegundos cambiamos a la sigu	einte imagen
+		
+
 		if pygame.time.get_ticks() - self.tiempoObtenido > ANIMATION_COOLDOWN:
 			self.tiempoObtenido = pygame.time.get_ticks()
 			self.indice_NumeroImagen += 1
 		#if llego al tope del totoal de iamgenes se reiniciar la animacion desde cero
 		if self.indice_NumeroImagen >= len(self.lista_animacion[self.accion]):
+			if(self.accion==4):
+				self.estoyAtacando=False
 			if self.accion == 3:
 				self.indice_NumeroImagen = len(self.lista_animacion[self.accion]) - 1
 
@@ -181,7 +207,7 @@ class Player(pygame.sprite.Sprite):
 				self.actualizarAccion(0)#0: idle
 
 				self.EstoyMirandoPlayer = True
-				self.EstoyMirandoPlayer_counter = 200
+				self.EstoyMirandoPlayer_counter = 50
 			#verificamos si la AI esta cerca del personaje
 			if self.vision.colliderect(player.rect):
 				#detenerse y mirar al personaje
@@ -198,7 +224,7 @@ class Player(pygame.sprite.Sprite):
 					self.mover_player(ai_moverIzquierda, ai_moverDerecha)
 					self.actualizarAccion(1)#1: estado de caminar
 					self.move_counter += 1
-					#update ai vision as the enemy moves
+					#actualiamos la vision del persoje
 					self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
 
 					if self.move_counter > rangoCamintadaIA: #verifica que no sobrepase el limite de caminanata
@@ -247,13 +273,63 @@ class MagiaFuego(pygame.sprite.Sprite):
 				enemy.health -= 25
 				self.kill()
 
-player = Player("player",200, 200, .7, 5,20)
+class CajaItems(pygame.sprite.Sprite):
+	def __init__(self, item_type, x, y):
+		pygame.sprite.Sprite.__init__(self)
+		self.item_type = item_type
+		self.image = cajaItems[self.item_type]
+		self.rect = self.image.get_rect()
+		self.rect.midtop = (x,y)
+
+	def update(self):
+		#verificamos si a ahabido colision con el player
+		if pygame.sprite.collide_rect(self, player):
+		#if pygame.sprite.spritecollide(player, grupovidas,False,pygame.sprite.pygame.sprite.collide_circle_ratio(.25)):
+			#verificamos con que objeto a colisionado
+			if self.item_type == 'Health':
+				player.health += 5 #98+5=103
+				if player.health > player.max_health:
+					player.health = player.max_health
+			elif self.item_type == 'magia':
+				player.cantidad_magia += 10
+		
+			self.kill()
+
+class HealthBar():
+	def __init__(self, x, y, health, max_health):
+		self.x = x
+		self.y = y
+		self.health = health
+		self.max_health = max_health
+
+	def draw(self, Ehealth):
+
+		#se acutaliza constantemente la vida segun nos agan daño
+		self.health = Ehealth
+		#dibujamos el borde de la vida 
+		draw_text('Vida: ', font, WHITE, 20, 10)
+		ratio = self.health #95/100 =0.95
+		pygame.draw.rect(screen, BLACK, (self.x - 2, self.y - 2, 250+4, 24))
+		pygame.draw.rect(screen, RED, (self.x, self.y, 250, 20))
+		pygame.draw.rect(screen, GREEN, (self.x, self.y, ratio*2.5, 20))
+
+player = Player("player",200, 200, .7, 5,10)
+health_bar = HealthBar(90, 10, player.health, player.health)
+
 enemy  = Player("enemy", 600, 500, .7, 2,20)
 
 grupo_magiasDisparadas = pygame.sprite.Group()
+item_box_group = pygame.sprite.Group()
+
+item_box = CajaItems('Health', 800, 450)
+item_box_group.add(item_box)
+
+item_box = CajaItems('magia', 400, 450)
+item_box_group.add(item_box)
 
 
 run = True
+
 while run:
 	clock.tick(FPS)
 	###################EVENTOS###################
@@ -293,14 +369,24 @@ while run:
 			player.actualizarAccion(2)#2: saltar
 		elif mover_izquierda or mover_derecha:
 			player.actualizarAccion(1)#1: correr
+		elif player.estoyAtacando :
+			player.actualizarAccion(4)#1: correr
 		else:
 			player.actualizarAccion(0)#0: quieto
 		player.mover_player(mover_izquierda, mover_derecha)
 
-	
 	############RENDER####################
 	
 	draw_bg() # dibujar el fondo
+
+	draw_text('Mana: ', font, WHITE, 10, 35)
+	for x in range(player.cantidad_magia):
+		screen.blit(imgMagia, (90 + (x * 12), 40))
+		
+
+
+	item_box_group.update()
+	item_box_group.draw(screen)
 
 	player.update()
 	player.draw() # dibuja al jugador
@@ -311,6 +397,8 @@ while run:
 	
 	grupo_magiasDisparadas.draw(screen)
 	grupo_magiasDisparadas.update()
+
+	health_bar.draw(player.health)
 
 	pygame.display.flip()# actualizar pantalla
 pygame.quit()
