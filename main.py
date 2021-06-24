@@ -12,6 +12,7 @@ BLACK = (0, 0, 0)
 
 SCREEN_WIDTH = 1100
 SCREEN_HEIGHT = 600
+SCROLL_THRESH = 200
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Shooter')
@@ -23,7 +24,7 @@ FPS = 60
 #gravedad del juego
 GRAVITY = 0.75
 rangoCamintadaIA = 120
-
+screen_scroll = 0
 #variabless para mover al personaje derecha o izquierda
 mover_izquierda = False
 mover_derecha = False
@@ -52,11 +53,17 @@ cajaItems = {
 	'magia'		: itemMagia,
 }
 
+bg_scroll = 0
+widht_imagenBG=1376 #la cantidad en pixeles de la imagen de background que cargamos
+LimiteFor=3
 def draw_bg():
-	screen.blit(nuves,(0,0))
-	screen.blit(mountaña,(0,200))
-	screen.blit(pinos,(0,270))
-	screen.blit(suelo,(0,270))
+	
+	for x in range(LimiteFor):
+		screen.blit(nuves,(x*widht_imagenBG-bg_scroll,0))#5,0 ....150,0
+		screen.blit(mountaña,(x*widht_imagenBG-bg_scroll,200))#5,0
+		screen.blit(pinos,(x*widht_imagenBG-bg_scroll,270))#5,0
+		screen.blit(suelo,(x*widht_imagenBG-bg_scroll,270))#5,0
+
 
 def draw_text(text, font, text_col, x, y):
 	img = font.render(text, True, text_col)
@@ -138,6 +145,7 @@ class Player(pygame.sprite.Sprite):
 
 	def mover_player(self, moving_left, moving_right):
 		#reseteamos las variables de movimiento
+		screen_scroll = 0
 		dx = 0
 		dy = 0
 
@@ -169,9 +177,21 @@ class Player(pygame.sprite.Sprite):
 			dy = piso - (self.rect.bottom -50) #y  de abajo de mi imagen
 			self.in_air = False
 
+		if self.tipo_personaje == 'player':
+			if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH+400:
+				dx = 0
+
 		#actualizamos la posicion de la imagen del player
 		self.rect.x += dx
 		self.rect.y += dy
+
+		if self.tipo_personaje == 'player': #
+			if (self.rect.right > SCREEN_WIDTH - SCROLL_THRESH and bg_scroll <  SCREEN_WIDTH*LimiteFor-SCREEN_WIDTH)\
+				or (self.rect.left < SCROLL_THRESH and bg_scroll > abs(dx)):
+				self.rect.x -= dx # se hace cero
+				screen_scroll -=dx  # -5
+		print(bg_scroll)
+		return screen_scroll
 
 	def actualizarAnimacion(self):
 		ANIMATION_COOLDOWN = 100
@@ -211,7 +231,7 @@ class Player(pygame.sprite.Sprite):
 			#verificamos si la AI esta cerca del personaje
 			if self.vision.colliderect(player.rect):
 				#detenerse y mirar al personaje
-				self.actualizarAccion(0)#0: estado idle
+				self.actualizarAccion(4)#0: estado idle
 				#estado castear magina
 				self.castearMagia()
 			else:
@@ -235,6 +255,45 @@ class Player(pygame.sprite.Sprite):
 					if self.EstoyMirandoPlayer_counter <= 0:
 						self.EstoyMirandoPlayer = False
 
+		self.rect.x += screen_scroll
+
+	def InteligenciaArtificialBoss(self):
+		if self.estoyVivo :#and player.estoyVivo:
+			if self.EstoyMirandoPlayer == False and random.randint(1, 200) == 1:
+				#sonidoDOlor.play()
+				self.actualizarAccion(0)#0: idle
+
+				self.EstoyMirandoPlayer = True
+				self.EstoyMirandoPlayer_counter = 5
+			#verificamos si la AI esta cerca del personaje
+			if self.vision.colliderect(player.rect):
+				#detenerse y mirar al personaje
+				self.actualizarAccion(4)#0: estado idle
+				#estado castear magina
+				self.castearMagia()
+			else:
+				if self.EstoyMirandoPlayer == False: # esta caminando
+					if self.direction == 1:
+						ai_moverDerecha = True
+					else:
+						ai_moverDerecha = False
+					ai_moverIzquierda = not ai_moverDerecha
+					self.mover_player(ai_moverIzquierda, ai_moverDerecha)
+					self.actualizarAccion(1)#1: estado de caminar
+					self.move_counter += 1
+					#actualiamos la vision del persoje
+					self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
+
+					if self.move_counter > rangoCamintadaIA: #verifica que no sobrepase el limite de caminanata
+						self.direction *= -1  # verifica la direccion de caminata
+						self.move_counter *= -1
+				else:
+					self.EstoyMirandoPlayer_counter -= 1
+					if self.EstoyMirandoPlayer_counter <= 0:
+						self.EstoyMirandoPlayer = False
+
+		self.rect.x += screen_scroll
+
 
 	def draw(self):
 		screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
@@ -257,7 +316,7 @@ class MagiaFuego(pygame.sprite.Sprite):
 
 	def update(self): 
 		#mover magia direccion siempre va a ser +1 -1
-		self.rect.x += (self.direccion * self.velocidad)
+		self.rect.x += (self.direccion * self.velocidad)+ screen_scroll
 		#verificamos si la magia a salido de la ventana de render
 		if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH:
 			self.kill()
@@ -272,6 +331,14 @@ class MagiaFuego(pygame.sprite.Sprite):
 			if enemy.estoyVivo:
 				enemy.health -= 25
 				self.kill()
+		if pygame.sprite.spritecollide(enemy1, grupo_magiasDisparadas,False,pygame.sprite.pygame.sprite.collide_circle_ratio(.25)):
+			if enemy1.estoyVivo:
+				enemy1.health -= 25
+				self.kill()
+		if pygame.sprite.spritecollide(enemy2, grupo_magiasDisparadas,False,pygame.sprite.pygame.sprite.collide_circle_ratio(.25)):
+			if enemy2.estoyVivo:
+				enemy2.health -= 25
+				self.kill()
 
 class CajaItems(pygame.sprite.Sprite):
 	def __init__(self, item_type, x, y):
@@ -282,6 +349,7 @@ class CajaItems(pygame.sprite.Sprite):
 		self.rect.midtop = (x,y)
 
 	def update(self):
+		self.rect.x += screen_scroll
 		#verificamos si a ahabido colision con el player
 		if pygame.sprite.collide_rect(self, player):
 		#if pygame.sprite.spritecollide(player, grupovidas,False,pygame.sprite.pygame.sprite.collide_circle_ratio(.25)):
@@ -317,6 +385,8 @@ player = Player("player",200, 200, .7, 5,10)
 health_bar = HealthBar(90, 10, player.health, player.health)
 
 enemy  = Player("enemy", 600, 500, .7, 2,20)
+enemy1  = Player("enemy", 1200, 500, .7, 2,20)
+enemy2 = Player("boss", 1800, 600, 1.1, 2,20)
 
 grupo_magiasDisparadas = pygame.sprite.Group()
 item_box_group = pygame.sprite.Group()
@@ -379,11 +449,14 @@ while run:
 	
 	draw_bg() # dibujar el fondo
 
+
 	draw_text('Mana: ', font, WHITE, 10, 35)
 	for x in range(player.cantidad_magia):
 		screen.blit(imgMagia, (90 + (x * 12), 40))
 		
 
+	screen_scroll = player.mover_player(mover_izquierda, mover_derecha)
+	bg_scroll -= screen_scroll
 
 	item_box_group.update()
 	item_box_group.draw(screen)
@@ -394,6 +467,14 @@ while run:
 	enemy.InteligenciaArtificialNormal()
 	enemy.draw()
 	enemy.update()
+
+	enemy1.InteligenciaArtificialNormal()
+	enemy1.draw()
+	enemy1.update()
+
+	enemy2.InteligenciaArtificialBoss()
+	enemy2.draw()
+	enemy2.update()
 	
 	grupo_magiasDisparadas.draw(screen)
 	grupo_magiasDisparadas.update()
