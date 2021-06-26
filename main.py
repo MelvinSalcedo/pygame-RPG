@@ -117,6 +117,8 @@ class Player(pygame.sprite.Sprite):
 		self.estoyAtacando=False
 		self.max_health = self.health
 
+		self.topePiso=50*scale*1.8
+
 	def update(self):
 		self.actualizarAnimacion()
 		self.verificarEstoyVivo()
@@ -173,8 +175,8 @@ class Player(pygame.sprite.Sprite):
 		dy += self.vel_y # 0-10
 
 		#verificamos la colision con el suelo
-		if (self.rect.bottom-50) + dy > piso:
-			dy = piso - (self.rect.bottom -50) #y  de abajo de mi imagen
+		if (self.rect.bottom-self.topePiso) + dy > piso:
+			dy = piso - (self.rect.bottom -self.topePiso) #y  de abajo de mi imagen
 			self.in_air = False
 
 		if self.tipo_personaje == 'player':
@@ -245,7 +247,7 @@ class Player(pygame.sprite.Sprite):
 					self.actualizarAccion(1)#1: estado de caminar
 					self.move_counter += 1
 					#actualiamos la vision del persoje
-					self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
+					self.vision.center = (self.rect.centerx + 230 * self.direction, self.rect.centery)
 
 					if self.move_counter > rangoCamintadaIA: #verifica que no sobrepase el limite de caminanata
 						self.direction *= -1  # verifica la direccion de caminata
